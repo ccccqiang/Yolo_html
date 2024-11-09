@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YOLOv5 Webcam Detection</title>
+</head>
+<body>
+    <h1>YOLOv5 Webcam Object Detection</h1>
+
+    <!-- 视频元素 -->
+    <video id="webcam" width="640" height="480" autoplay></video>
+
+    <!-- 画布用于绘制检测结果 -->
+    <canvas id="canvas" width="640" height="480"></canvas>
+
+    <script>
+        // 获取摄像头视频流
+        const video = document.getElementById('webcam');
+        const canvas = document.getElementById('canvas');
+        const context = canvas.getContext('2d');
+
+        // 请求访问摄像头
+        async function setupWebcam() {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: { width: 640, height: 480 }
+            });
+            video.srcObject = stream;
+        }
+
+        setupWebcam();
+
+        // 每帧获取视频流并发送到后端进行处理
+        video.addEventListener('play', function () {
+            setInterval(() => {
+                context.drawImage(video, 0, 0, 640, 480);
+
+                // 获取当前帧图像数据
+                const imageData = canvas.toDataURL('image/jpeg');
+
+                // 将图像数据发送给后端进行检测
+                fetch('/detect', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ image: imageData })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    // 清除画布
+                    context.clearRect(0, 0, canvas.width, canvas.height);
+
+                    // 绘制检测结果
+                    data.bboxes.forEach(bbox => {
+                        context.beginPath();
+                        context.rect(bbox[0], bbox[1], bbox[2], bbox[3]);
+                        context.lineWidth = 2;
+                        context.strokeStyle = 'red';
+                        context.stroke();
+                        context.font = '16px Arial';
+                        context.fillStyle = 'red';
+                        context.fillText(bbox[4], bbox[0], bbox[1] - 10);
+                    });
+                })
+                .catch(error => console.error('Error during detection:', error));
+            }, 100); // 每100ms发送一次帧
+        });
+    </script>
+</body>
+</html>
